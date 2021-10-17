@@ -3,6 +3,8 @@ project(triangles)
 include(GoogleTest)
 
 add_subdirectory(3rdparty/glm)
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(3rdparty/googletest)
 
 set(LIBRARY_NAME collisions)
