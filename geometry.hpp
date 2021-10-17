@@ -5,7 +5,6 @@
 #include "glm/geometric.hpp"
 #include "glm/gtx/norm.hpp"
 #include "glm/vec3.hpp"
-#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -17,23 +16,24 @@ namespace geom {
 
 constexpr auto epsilon = glm::epsilon<float>();
 constexpr auto epsilon2 = epsilon * epsilon;
+constexpr auto pos_inf = std::numeric_limits<float>::infinity();
+constexpr auto neg_inf = -pos_inf;
 
 std::istream &operator>>(std::istream &is, glm::vec3 &vec);
 std::ostream &operator<<(std::ostream &os, const glm::vec3 &vec);
 
 class Range {
 public:
-  Range(std::initializer_list<float> points)
-      : start_(std::min(points)), finish_(std::max(points)) {}
+  Range(float min, float max) : min_(min), max_(max) { assert(min_ <= max_); }
   bool intersects(const Range &other) const {
-    if (other.finish_ < start_ || other.start_ > finish_)
+    if (other.max_ < min_ || other.min_ > max_)
       return false;
     return true;
   }
   void dump(std::ostream &os) const;
 
 private:
-  float start_, finish_;
+  float min_, max_;
 };
 
 inline bool Intersects(const Range &range1, const Range &range2) {
@@ -41,6 +41,9 @@ inline bool Intersects(const Range &range1, const Range &range2) {
 }
 
 std::ostream &operator<<(std::ostream &os, const Range &range);
+
+using Edge = std::pair<glm::vec3, glm::vec3>;
+class Plane;
 
 class Line {
 public:
@@ -50,9 +53,8 @@ public:
   float getProjection(glm::vec3 point) const {
     return glm::dot(point - point_, dir_);
   }
-  float getDistance(glm::vec3 point) const {
-    return glm::length(glm::cross(point - point_, dir_));
-  }
+  std::optional<float> getEdgeIntersection(const Edge &edge,
+                                           const Plane &plane) const;
   void dump(std::ostream &os) const;
 
 private:
@@ -70,7 +72,7 @@ public:
     return glm::cross(p_[1] - p_[0], p_[2] - p_[0]);
   }
   bool isDegenerative() const { return glm::length2(getNormal()) <= epsilon2; }
-  Range getIntersectionRange(const Line &line) const;
+  Range getIntersectionRange(const Line &line, const Plane &plane) const;
   void dump(std::ostream &os) const;
   void read(std::istream &is);
 
