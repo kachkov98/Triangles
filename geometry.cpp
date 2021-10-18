@@ -1,5 +1,6 @@
 #include "geometry.hpp"
 #include <iostream>
+#include <ostream>
 
 namespace geom {
 
@@ -12,6 +13,22 @@ std::ostream &operator<<(std::ostream &os, const glm::vec3 &vec) {
   os << "[x: " << vec.x << " y: " << vec.y << " z: " << vec.z << "]";
   return os;
 }
+
+std::ostream &operator<<(std::ostream &os, const glm::vec2 &vec) {
+  os << "[x: " << vec.x << " y: " << vec.y << "]";
+  return os;
+}
+
+std::ostream &operator<<(std::ostream &os, const Edge &edge) {
+  os << "{" << edge.first << ", " << edge.second << "}";
+  return os;
+}
+
+std::ostream &operator<<(std::ostream &os, const Edge2D &edge) {
+  os << "{" << edge.first << ", " << edge.second << "}";
+  return os;
+}
+
 void Range::dump(std::ostream &os) const {
   os << "[" << min_ << ", " << max_ << "]";
 }
@@ -91,8 +108,27 @@ bool Intersects(const Triangle &tri1, const Triangle &tri2) {
 #endif
     return Intersects(rng1, rng2);
   }
-  // TODO: complanar triangles intersection
-  return false;
+  // coplanar triangles intersection
+  auto normal = pln1.getNormal();
+  AAPlane::Axis axis;
+  if (std::abs(normal.x) > std::abs(normal.y)) {
+    if (std::abs(normal.x) > std::abs(normal.z))
+      axis = AAPlane::Axis::X;
+    else
+      axis = AAPlane::Axis::Z;
+  } else {
+    if (std::abs(normal.y) > std::abs(normal.z))
+      axis = AAPlane::Axis::Y;
+    else
+      axis = AAPlane::Axis::Z;
+  }
+  AAPlane aa_plane(0.0f, axis);
+  auto tri1_prj = aa_plane.getProjection(tri1),
+       tri2_prj = aa_plane.getProjection(tri2);
+#ifndef NDEBUG
+  std::cerr << "2D triangles:\n" << tri1_prj << '\n' << tri2_prj << '\n';
+#endif
+  return Intersects(tri1_prj, tri2_prj);
 }
 
 std::ostream &operator<<(std::ostream &os, const Triangle &triangle) {
@@ -103,6 +139,71 @@ std::ostream &operator<<(std::ostream &os, const Triangle &triangle) {
 std::istream &operator>>(std::istream &is, Triangle &triangle) {
   triangle.read(is);
   return is;
+}
+
+static float GetOrientation(glm::vec2 p, const Edge2D &edge) {
+  return (edge.second.x - p.x) * (edge.second.y - edge.first.y) -
+         (edge.second.x - edge.first.x) * (edge.second.y - p.y);
+}
+
+bool Triangle2D::isInner(glm::vec2 p) const {
+  auto d1 = GetOrientation(p, Edge2D{p_[0], p_[1]}),
+       d2 = GetOrientation(p, Edge2D{p_[1], p_[2]}),
+       d3 = GetOrientation(p, Edge2D{p_[2], p_[0]});
+  return ((d1 >= 0.0f) && (d2 >= 0.0f) && (d3 >= 0.0f)) ||
+         ((d1 <= 0.0f) && (d2 <= 0.0f) && (d3 <= 0.0f));
+}
+
+void Triangle2D::dump(std::ostream &os) const {
+  os << "(" << p_[0] << ", " << p_[1] << ", " << p_[2] << ")";
+}
+
+static bool IsEdgesIntersect(const Edge2D &edge1, const Edge2D &edge2) {
+  auto orient11 = GetOrientation(edge2.first, edge1),
+       orient12 = GetOrientation(edge2.second, edge1),
+       orient21 = GetOrientation(edge1.first, edge2),
+       orient22 = GetOrientation(edge1.second, edge2);
+  if ((std::abs(orient11) < epsilon) && (std::abs(orient12) < epsilon) &&
+      (std::abs(orient21) < epsilon) && (std::abs(orient22) < epsilon)) {
+    Range x_projection1{std::min(edge1.first.x, edge1.second.x),
+                        std::max(edge1.first.x, edge1.second.x)};
+    Range x_projection2{std::min(edge2.first.x, edge2.second.x),
+                        std::max(edge2.first.x, edge2.second.x)};
+    Range y_projection1{std::min(edge1.first.y, edge1.second.y),
+                        std::max(edge1.first.y, edge1.second.y)};
+    Range y_projection2{std::min(edge2.first.y, edge2.second.y),
+                        std::max(edge2.first.y, edge2.second.y)};
+    return Intersects(x_projection1, x_projection2) &&
+           Intersects(y_projection1, y_projection2);
+  }
+  if (((orient11 >= epsilon && orient12 <= -epsilon) ||
+       (orient11 <= -epsilon && orient12 >= epsilon)) &&
+      ((orient21 >= epsilon && orient22 <= -epsilon) ||
+       (orient21 <= -epsilon && orient22 >= epsilon)))
+    return true;
+  return false;
+}
+
+bool Intersects(const Triangle2D &tri1, const Triangle2D &tri2) {
+  auto get_edges = [](const Triangle2D &tri) -> std::array<Edge2D, 3> {
+    return {Edge2D{tri.getPoint(0), tri.getPoint(1)},
+            Edge2D{tri.getPoint(1), tri.getPoint(2)},
+            Edge2D{tri.getPoint(2), tri.getPoint(0)}};
+  };
+  for (auto edge1 : get_edges(tri1))
+    for (auto edge2 : get_edges(tri2))
+      if (IsEdgesIntersect(edge1, edge2)) {
+#ifndef NDEBUG
+        std::cerr << "Edges: " << edge1 << " and " << edge2 << " intersect\n";
+#endif
+        return true;
+      }
+  return tri1.isInner(tri2) || tri2.isInner(tri1);
+}
+
+std::ostream &operator<<(std::ostream &os, const Triangle2D &triangle) {
+  triangle.dump(os);
+  return os;
 }
 
 std::optional<Line> Plane::intersect(const Plane &other) const {

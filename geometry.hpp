@@ -22,6 +22,8 @@ constexpr auto neg_inf = -pos_inf;
 std::istream &operator>>(std::istream &is, glm::vec3 &vec);
 std::ostream &operator<<(std::ostream &os, const glm::vec3 &vec);
 
+std::ostream &operator<<(std::ostream &os, const glm::vec2 &vec);
+
 class Range {
 public:
   Range(float min, float max) : min_(min), max_(max) { assert(min_ <= max_); }
@@ -43,6 +45,10 @@ inline bool Intersects(const Range &range1, const Range &range2) {
 std::ostream &operator<<(std::ostream &os, const Range &range);
 
 using Edge = std::pair<glm::vec3, glm::vec3>;
+using Edge2D = std::pair<glm::vec2, glm::vec2>;
+std::ostream &operator<<(std::ostream &os, const Edge &edge);
+std::ostream &operator<<(std::ostream &os, const Edge2D &edge);
+
 class Plane;
 
 class Line {
@@ -85,6 +91,25 @@ bool Intersects(const Triangle &tri1, const Triangle &tri2);
 std::ostream &operator<<(std::ostream &os, const Triangle &triangle);
 std::istream &operator>>(std::istream &is, Triangle &triangle);
 
+class Triangle2D {
+public:
+  Triangle2D(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3) : p_({p1, p2, p3}) {}
+  glm::vec2 getPoint(unsigned idx) const { return p_[idx]; }
+  bool isInner(glm::vec2 p) const;
+  bool isInner(const Triangle2D &other) const {
+    return isInner(other.getPoint(0)) && isInner(other.getPoint(1)) &&
+           isInner(other.getPoint(2));
+  }
+  void dump(std::ostream &os) const;
+
+private:
+  std::array<glm::vec2, 3> p_;
+};
+
+bool Intersects(const Triangle2D &tri1, const Triangle2D &tri2);
+
+std::ostream &operator<<(std::ostream &os, const Triangle2D &triangle);
+
 template <class Derived> class PlaneBase {
 public:
   bool isFront(glm::vec3 point) const {
@@ -118,6 +143,22 @@ public:
   float getDistance(glm::vec3 point) const {
     return point[static_cast<uint8_t>(axis_)] - pos_;
   }
+  glm::vec2 getProjection(glm::vec3 p) {
+    switch (axis_) {
+    case Axis::X:
+      return glm::vec2(p.y, p.z);
+    case Axis::Y:
+      return glm::vec2(p.x, p.z);
+    case Axis::Z:
+      return glm::vec2(p.x, p.y);
+    }
+    return glm::vec2{};
+  }
+  Triangle2D getProjection(const Triangle &tri) {
+    return Triangle2D(getProjection(tri.getPoint(0)),
+                      getProjection(tri.getPoint(1)),
+                      getProjection(tri.getPoint(2)));
+  }
 
 private:
   float pos_;
@@ -136,6 +177,7 @@ public:
   float getDistance(glm::vec3 point) const {
     return glm::dot(point - point_, normal_);
   }
+  glm::vec3 getNormal() const { return normal_; }
   std::optional<Line> intersect(const Plane &other) const;
 
 private:

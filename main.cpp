@@ -13,7 +13,6 @@ int main(int argc, char *argv[]) {
   }
   auto res = scene::findIntersectingTriangles(triangles);
   for (auto idx : res)
-    std::cout << idx << " ";
-  std::cout << std::endl;
+    std::cout << idx << std::endl;
   return 0;
 }
