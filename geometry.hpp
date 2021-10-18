@@ -7,8 +7,6 @@
 #include "glm/vec3.hpp"
 #include <array>
 #include <cassert>
-#include <cstdint>
-#include <initializer_list>
 #include <iosfwd>
 #include <optional>
 
@@ -138,7 +136,7 @@ public:
 
 class AAPlane : public PlaneBase<AAPlane> {
 public:
-  enum class Axis : uint8_t { X, Y, Z };
+  enum class Axis : unsigned char { X, Y, Z };
   AAPlane(float pos, Axis axis) : pos_(pos), axis_(axis) {}
   float getDistance(glm::vec3 point) const {
     return point[static_cast<uint8_t>(axis_)] - pos_;
