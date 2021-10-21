@@ -25,18 +25,20 @@ TEST(Geometry, Triangles) {
 }
 
 TEST(Scene, RandomScene) {
-  constexpr unsigned N = 1000000;
+  constexpr unsigned N = 100;
   scene::Scene triangles;
   for (unsigned i = 0; i < N; ++i) {
-    glm::vec3 center = glm::linearRand(glm::vec3(-1000.f, -1000.f, -1000.f),
-                                       glm::vec3(1000.f, 1000.f, 1000.f));
-    triangles.emplace_back(center + glm::ballRand(1.f),
-                           center + glm::ballRand(1.f),
-                           center + glm::ballRand(1.f));
+    glm::vec3 center = glm::linearRand(glm::vec3(-10.f, -10.f, -10.f),
+                                       glm::vec3(10.f, 10.f, 10.f));
+    triangles.emplace_back(center + glm::ballRand(2.f),
+                           center + glm::ballRand(2.f),
+                           center + glm::ballRand(2.f));
   }
-  auto res = scene::findIntersectingTriangles(triangles);
-  for (auto idx : res)
-    std::cout << idx << " ";
-  std::cout << std::endl;
-  EXPECT_TRUE(true);
+  scene::Collisions res1;
+  for (scene::TriangleIdx i = 0; i < triangles.size(); ++i)
+    for (scene::TriangleIdx j = i + 1; j < triangles.size(); ++j)
+      if (geom::Intersects(triangles[i], triangles[j]))
+        res1.insert({i, j});
+  auto res2 = scene::findIntersectingTriangles(triangles);
+  EXPECT_TRUE(res1 == res2);
 }

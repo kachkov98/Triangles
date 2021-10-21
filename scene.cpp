@@ -57,15 +57,13 @@ TreeNode::TreeNode(const Triangles &tris, const Scene &scene) {
 Collisions TreeNode::testCollisions(const Scene &scene) {
   Collisions res;
   auto do_test = [&](TriangleIdx idx1, TriangleIdx idx2) {
-    if (res.count(idx1) || res.count(idx2))
+    if (res.count(idx1) && res.count(idx2))
       return;
 #ifndef NDEBUG
     std::cerr << "Testing tris " << idx1 << " and " << idx2 << '\n';
 #endif
-    if (geom::Intersects(scene[idx1], scene[idx2])) {
-      res.insert(idx1);
-      res.insert(idx2);
-    }
+    if (geom::Intersects(scene[idx1], scene[idx2]))
+      res.insert({idx1, idx2});
   };
   // Test all triangles on current hierarchy level with each other and with
   // children triangles
