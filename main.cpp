@@ -1,4 +1,6 @@
-#include "scene.hpp"
+#include "collisions/scene.hpp"
+#include "renderer/renderer.hpp"
+#include <GLFW/glfw3.h>
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -12,7 +14,9 @@ int main(int argc, char *argv[]) {
     triangles.push_back(tri);
   }
   auto res = scene::findIntersectingTriangles(triangles);
-  for (auto idx : res)
-    std::cout << idx << std::endl;
+  glfwInit();
+  render::Renderer visualizer;
+  visualizer.run();
+  glfwTerminate();
   return 0;
 }

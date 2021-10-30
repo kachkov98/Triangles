@@ -1,12 +1,12 @@
 #ifndef GEOMETRY_HPP
 #define GEOMETRY_HPP
 
-#include "glm/common.hpp"
-#include "glm/geometric.hpp"
-#include "glm/gtx/norm.hpp"
-#include "glm/vec3.hpp"
 #include <array>
 #include <cassert>
+#include <glm/common.hpp>
+#include <glm/geometric.hpp>
+#include <glm/gtx/norm.hpp>
+#include <glm/vec3.hpp>
 #include <iosfwd>
 #include <optional>
 

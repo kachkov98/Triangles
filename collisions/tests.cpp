@@ -1,6 +1,6 @@
 #include "geometry.hpp"
-#include "glm/gtc/random.hpp"
 #include "scene.hpp"
+#include <glm/gtc/random.hpp>
 #include <gtest/gtest.h>
 #include <iostream>
 

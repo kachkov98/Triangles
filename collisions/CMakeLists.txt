@@ -1,0 +1,10 @@
+set(LIBRARY_NAME collisions)
+add_library(${LIBRARY_NAME} STATIC "geometry.cpp" "scene.cpp")
+target_compile_features(${LIBRARY_NAME} PUBLIC cxx_std_17)
+target_link_libraries(${LIBRARY_NAME} INTERFACE glm)
+
+set(TESTS_NAME tests)
+add_executable(${TESTS_NAME} "tests.cpp")
+target_compile_features(${TESTS_NAME} PRIVATE cxx_std_17)
+target_link_libraries(${TESTS_NAME} PRIVATE ${LIBRARY_NAME} gtest_main)
+gtest_discover_tests(${TESTS_NAME})
