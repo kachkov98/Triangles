@@ -1,5 +1,5 @@
-#ifndef SCENE_HPP
-#define SCENE_HPP
+#ifndef COLLISIONS_SCENE_HPP
+#define COLLISIONS_SCENE_HPP
 
 #include "geometry.hpp"
 #include <memory>

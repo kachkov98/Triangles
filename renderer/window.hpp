@@ -2,6 +2,8 @@
 #define WINDOW_HPP
 
 #include <string>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 struct GLFWwindow;
 
@@ -19,8 +21,13 @@ public:
     return *this;
   }
   ~Window();
-  bool should_close() const;
-  void process_events() const;
+
+  bool shouldClose() const;
+  void processEvents() const;
+  vk::Extent2D getExtent() const;
+
+  std::vector<const char *> getRequiredExtensions() const;
+  vk::UniqueSurfaceKHR createSurface(vk::Instance instance) const;
 
 private:
   GLFWwindow *window_;

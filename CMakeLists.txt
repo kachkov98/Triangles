@@ -14,12 +14,17 @@ include_directories(3rdparty/glm)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(3rdparty/googletest)
 
+
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
+
+add_subdirectory(shaders)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/shaders)
 add_subdirectory(collisions)
 add_subdirectory(renderer)
 
 add_executable(${PROJECT_NAME} "main.cpp")
+add_dependencies(${PROJECT_NAME} Shaders)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 target_link_libraries(${PROJECT_NAME} PRIVATE collisions renderer)
