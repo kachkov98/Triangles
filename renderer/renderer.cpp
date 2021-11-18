@@ -24,7 +24,9 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 }
 #endif
 
-Renderer::Renderer(const Window &window, const std::string &app_name) {
+Renderer::Renderer(const Window &window, const std::string &app_name,
+                   const VertexData &vertex_data,
+                   const CameraData &camera_data) {
   createInstance(window, app_name);
 #ifndef NDEBUG
   createDebugCallback();
@@ -35,7 +37,13 @@ Renderer::Renderer(const Window &window, const std::string &app_name) {
   createQueues();
   createCommandPool();
   createSemaphores();
-  createSwapchain(window);
+  createSwapchain(window.getExtent());
+  scene_ = std::move(VertexBuffer(*device_, physical_device_, vertex_data));
+  camera_buffers_.reserve(image_count_);
+  for (unsigned i = 0; i < image_count_; ++i)
+    camera_buffers_.emplace_back(*device_, physical_device_, camera_data);
+  createDescriptors();
+  createDepthResources();
   createRenderPass();
   createPipeline();
   createFramebuffers();
@@ -45,6 +53,9 @@ Renderer::Renderer(const Window &window, const std::string &app_name) {
 
 void Renderer::resize(const Window &window) {
   device_->waitIdle();
+  depth_image_view_.reset();
+  depth_image_.reset();
+  depth_image_mem_.reset();
   framebuffers_.clear();
   command_buffers_.clear();
   pipeline_.reset();
@@ -54,7 +65,8 @@ void Renderer::resize(const Window &window) {
   swapchain_images_.clear();
   swapchain_.reset();
 
-  createSwapchain(window);
+  createSwapchain(window.getExtent());
+  createDepthResources();
   createRenderPass();
   createPipeline();
   createFramebuffers();
@@ -62,7 +74,7 @@ void Renderer::resize(const Window &window) {
   recordCommandBuffers();
 }
 
-void Renderer::draw(const Window &window) {
+void Renderer::draw(const Window &window, const CameraData &camera_data) {
   auto image_index = device_->acquireNextImageKHR(
       *swapchain_, std::numeric_limits<uint64_t>::max(),
       *image_available_semaphore_, {});
@@ -70,6 +82,8 @@ void Renderer::draw(const Window &window) {
     resize(window);
     return;
   }
+
+  camera_buffers_[image_index.value].upload(*device_, camera_data);
 
   vk::PipelineStageFlags wait_stage_mask =
       vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -176,7 +190,7 @@ void Renderer::createQueues() {
   present_queue_ = device_->getQueue(present_queue_family_index_, 0);
 }
 
-void Renderer::createSwapchain(const Window &window) {
+void Renderer::createSwapchain(vk::Extent2D extent) {
   auto capabilities = physical_device_.getSurfaceCapabilitiesKHR(*surface_);
   auto formats = physical_device_.getSurfaceFormatsKHR(*surface_);
 
@@ -190,7 +204,7 @@ void Renderer::createSwapchain(const Window &window) {
   format_ = default_format.format;
   color_space_ = default_format.colorSpace;
 
-  extent_ = window.getExtent();
+  extent_ = extent;
   image_count_ = capabilities.minImageCount + 1;
 
   struct SM {
@@ -227,6 +241,36 @@ void Renderer::createSwapchain(const Window &window) {
   }
 }
 
+void Renderer::createDescriptors() {
+  auto pool_size =
+      vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, image_count_};
+  descriptor_pool_ = device_->createDescriptorPoolUnique(
+      {{}, image_count_, 1, &pool_size}, nullptr);
+  vk::DescriptorSetLayoutBinding ubo_layout_binding{
+      0, vk::DescriptorType::eUniformBuffer, 1,
+      vk::ShaderStageFlagBits::eVertex};
+  descriptor_set_layout_ =
+      device_->createDescriptorSetLayoutUnique({{}, 1, &ubo_layout_binding});
+  std::vector<vk::DescriptorSetLayout> layouts(image_count_,
+                                               *descriptor_set_layout_);
+  descriptor_sets_ =
+      device_->allocateDescriptorSets({*descriptor_pool_, layouts});
+  for (unsigned i = 0; i < image_count_; ++i) {
+    auto buffer_info = vk::DescriptorBufferInfo{camera_buffers_[i].get(), 0,
+                                                sizeof(CameraData)};
+    auto descriptor_write =
+        vk::WriteDescriptorSet{descriptor_sets_[i],
+                               0,
+                               0,
+                               1,
+                               vk::DescriptorType::eUniformBuffer,
+                               nullptr,
+                               &buffer_info,
+                               nullptr};
+    device_->updateDescriptorSets(1, &descriptor_write, 0, nullptr);
+  }
+}
+
 void Renderer::createRenderPass() {
   auto color_attachment =
       vk::AttachmentDescription{{},
@@ -242,21 +286,41 @@ void Renderer::createRenderPass() {
   auto color_attachment_ref =
       vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal};
 
-  auto subpass = vk::SubpassDescription{{}, vk::PipelineBindPoint::eGraphics,
-                                        0,  nullptr,
-                                        1,  &color_attachment_ref};
+  auto depth_attachment = vk::AttachmentDescription{
+      {},
+      depth_format_,
+      vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear,
+      vk::AttachmentStoreOp::eDontCare,
+      {},
+      {},
+      {},
+      vk::ImageLayout::eDepthStencilAttachmentOptimal};
 
-  auto subpass_dependency =
+  auto depth_attachment_ref = vk::AttachmentReference{
+      1, vk::ImageLayout::eDepthStencilAttachmentOptimal};
+
+  auto subpass = {vk::SubpassDescription{{},
+                                         vk::PipelineBindPoint::eGraphics,
+                                         0,
+                                         nullptr,
+                                         1,
+                                         &color_attachment_ref,
+                                         nullptr,
+                                         &depth_attachment_ref}};
+
+  auto subpass_dependency = {
       vk::SubpassDependency{VK_SUBPASS_EXTERNAL,
                             0,
                             vk::PipelineStageFlagBits::eColorAttachmentOutput,
                             vk::PipelineStageFlagBits::eColorAttachmentOutput,
                             {},
                             vk::AccessFlagBits::eColorAttachmentRead |
-                                vk::AccessFlagBits::eColorAttachmentWrite};
-
-  render_pass_ = device_->createRenderPassUnique(vk::RenderPassCreateInfo{
-      {}, 1, &color_attachment, 1, &subpass, 1, &subpass_dependency});
+                                vk::AccessFlagBits::eColorAttachmentWrite}};
+  std::array<vk::AttachmentDescription, 2> attachments = {color_attachment,
+                                                          depth_attachment};
+  render_pass_ = device_->createRenderPassUnique(
+      vk::RenderPassCreateInfo{{}, attachments, subpass, subpass_dependency});
 }
 
 void Renderer::createPipeline() {
@@ -279,8 +343,14 @@ void Renderer::createPipeline() {
   auto pipeline_shader_stages = std::vector<vk::PipelineShaderStageCreateInfo>{
       vert_shader_stage_info, frag_shader_stage_info};
 
+  auto binding_description = Vertex::getBindingDescription();
+  auto attribute_descriptions = Vertex::getAttributeDescriptions();
   auto vertex_input_info =
-      vk::PipelineVertexInputStateCreateInfo{{}, 0u, nullptr, 0u, nullptr};
+      vk::PipelineVertexInputStateCreateInfo{{},
+                                             1,
+                                             &binding_description,
+                                             attribute_descriptions.size(),
+                                             attribute_descriptions.data()};
 
   auto input_assembly = vk::PipelineInputAssemblyStateCreateInfo{
       {}, vk::PrimitiveTopology::eTriangleList, false};
@@ -308,6 +378,9 @@ void Renderer::createPipeline() {
   auto multisampling = vk::PipelineMultisampleStateCreateInfo{
       {}, vk::SampleCountFlagBits::e1, false, 1.0};
 
+  auto depth_stencil = vk::PipelineDepthStencilStateCreateInfo{
+      {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLess, VK_FALSE, VK_FALSE};
+
   auto color_blend_attachment = vk::PipelineColorBlendAttachmentState{
       {},
       vk::BlendFactor::eOne,
@@ -322,7 +395,8 @@ void Renderer::createPipeline() {
   auto color_blending = vk::PipelineColorBlendStateCreateInfo{
       {}, false, vk::LogicOp::eCopy, 1, &color_blend_attachment};
 
-  pipeline_layout_ = device_->createPipelineLayoutUnique({}, nullptr);
+  pipeline_layout_ = device_->createPipelineLayoutUnique(
+      {{}, 1, &*descriptor_set_layout_}, nullptr);
 
   auto pipeline_create_info =
       vk::GraphicsPipelineCreateInfo{{},
@@ -333,7 +407,7 @@ void Renderer::createPipeline() {
                                      &viewport_state,
                                      &rasterizer,
                                      &multisampling,
-                                     nullptr,
+                                     &depth_stencil,
                                      &color_blending,
                                      nullptr,
                                      *pipeline_layout_,
@@ -343,17 +417,50 @@ void Renderer::createPipeline() {
       device_->createGraphicsPipelineUnique({}, pipeline_create_info).value;
 }
 
+void Renderer::createDepthResources() {
+  depth_format_ = vk::Format::eD32Sfloat;
+  auto image_info =
+      vk::ImageCreateInfo{{},
+                          vk::ImageType::e2D,
+                          depth_format_,
+                          vk::Extent3D{extent_.width, extent_.height, 1},
+                          1,
+                          1,
+                          vk::SampleCountFlagBits::e1,
+                          vk::ImageTiling::eOptimal,
+                          vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                          vk::SharingMode::eExclusive,
+                          0,
+                          nullptr,
+                          vk::ImageLayout::eUndefined};
+  depth_image_ = device_->createImageUnique(image_info, nullptr);
+  auto memory_properties = physical_device_.getMemoryProperties();
+  auto memory_requirements = device_->getImageMemoryRequirements(*depth_image_);
+  auto memory_index =
+      findMemoryTypeIndex(memory_properties, memory_requirements,
+                          vk::MemoryPropertyFlagBits::eDeviceLocal);
+  depth_image_mem_ = device_->allocateMemoryUnique(
+      vk::MemoryAllocateInfo{memory_requirements.size, memory_index});
+  device_->bindImageMemory(*depth_image_, *depth_image_mem_, 0);
+  auto image_view_info =
+      vk::ImageViewCreateInfo{{},
+                              *depth_image_,
+                              vk::ImageViewType::e2D,
+                              depth_format_,
+                              {},
+                              {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1}};
+  depth_image_view_ = device_->createImageViewUnique(image_view_info, nullptr);
+}
+
 void Renderer::createFramebuffers() {
   framebuffers_.reserve(swapchain_image_views_.size());
-  for (const auto &image_view : swapchain_image_views_)
-    framebuffers_.push_back(device_->createFramebufferUnique(
-        vk::FramebufferCreateInfo{{},
-                                  *render_pass_,
-                                  1,
-                                  &*image_view,
-                                  extent_.width,
-                                  extent_.height,
-                                  1}));
+  for (const auto &image_view : swapchain_image_views_) {
+    std::array<vk::ImageView, 2> attachments = {*image_view,
+                                                *depth_image_view_};
+    framebuffers_.push_back(
+        device_->createFramebufferUnique(vk::FramebufferCreateInfo{
+            {}, *render_pass_, attachments, extent_.width, extent_.height, 1}));
+  }
 }
 
 void Renderer::createCommandPool() {
@@ -373,16 +480,26 @@ void Renderer::recordCommandBuffers() {
 
     auto begin_info = vk::CommandBufferBeginInfo{};
     command_buffers_[i]->begin(begin_info);
-    vk::ClearValue clear_values{};
+    auto color_clear_value =
+        vk::ClearColorValue{std::array<float, 4>{0.0f, 0.0f, 0.f, 1.f}};
+    auto depth_clear_value = vk::ClearDepthStencilValue{1.f, 0};
+    std::array<vk::ClearValue, 2> clear_values{color_clear_value,
+                                               depth_clear_value};
     auto render_pass_begin_info =
         vk::RenderPassBeginInfo{*render_pass_, *framebuffers_[i],
-                                vk::Rect2D{{0, 0}, extent_}, 1, &clear_values};
+                                vk::Rect2D{{0, 0}, extent_}, clear_values};
 
     command_buffers_[i]->beginRenderPass(render_pass_begin_info,
                                          vk::SubpassContents::eInline);
     command_buffers_[i]->bindPipeline(vk::PipelineBindPoint::eGraphics,
                                       *pipeline_);
-    command_buffers_[i]->draw(3, 1, 0, 0);
+    command_buffers_[i]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                            *pipeline_layout_, 0, 1,
+                                            &descriptor_sets_[i], 0, nullptr);
+    vk::Buffer vertex_buffers[] = {scene_.get()};
+    vk::DeviceSize offsets[] = {0};
+    command_buffers_[i]->bindVertexBuffers(0, 1, vertex_buffers, offsets);
+    command_buffers_[i]->draw(scene_.getNumVertices(), 1, 0, 0);
     command_buffers_[i]->endRenderPass();
     command_buffers_[i]->end();
   }

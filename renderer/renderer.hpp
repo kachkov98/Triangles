@@ -1,6 +1,7 @@
 #ifndef RENDERER_HPP
 #define RENDERER_HPP
 
+#include "scene.hpp"
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.hpp>
@@ -11,9 +12,10 @@ class Window;
 
 class Renderer {
 public:
-  Renderer(const Window &window, const std::string &app_name);
+  Renderer(const Window &window, const std::string &app_name,
+           const VertexData &vertex_data, const CameraData &camera_data);
   void resize(const Window &window);
-  void draw(const Window &window);
+  void draw(const Window &window, const CameraData &camera_data);
   void waitIdle() const { device_->waitIdle(); }
 
 private:
@@ -37,9 +39,21 @@ private:
   std::vector<vk::Image> swapchain_images_;
   std::vector<vk::UniqueImageView> swapchain_image_views_;
 
+  VertexBuffer scene_;
+  std::vector<CameraBuffer> camera_buffers_;
+
+  vk::UniqueDescriptorPool descriptor_pool_;
+  vk::UniqueDescriptorSetLayout descriptor_set_layout_;
+  std::vector<vk::DescriptorSet> descriptor_sets_;
+
   vk::UniqueRenderPass render_pass_;
   vk::UniquePipelineLayout pipeline_layout_;
   vk::UniquePipeline pipeline_;
+
+  vk::Format depth_format_;
+  vk::UniqueImage depth_image_;
+  vk::UniqueDeviceMemory depth_image_mem_;
+  vk::UniqueImageView depth_image_view_;
   std::vector<vk::UniqueFramebuffer> framebuffers_;
   std::vector<vk::UniqueCommandBuffer> command_buffers_;
 
@@ -50,9 +64,11 @@ private:
   void createQueues();
   void createCommandPool();
   void createSemaphores();
-  void createSwapchain(const Window &window);
+  void createSwapchain(vk::Extent2D extent);
+  void createDescriptors();
   void createRenderPass();
   void createPipeline();
+  void createDepthResources();
   void createFramebuffers();
   void createCommandBuffers();
   void recordCommandBuffers();

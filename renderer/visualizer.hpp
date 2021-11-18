@@ -2,7 +2,6 @@
 #define VISUALIZER_HPP
 
 #include "renderer.hpp"
-#include "scene.hpp"
 #include "window.hpp"
 
 namespace render {
@@ -14,9 +13,8 @@ public:
 
 private:
   Window window_;
-  Renderer renderer_;
-  VertexBuffer scene_;
   Camera camera_;
+  Renderer renderer_;
 };
 
 } // namespace render
