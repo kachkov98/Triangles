@@ -8,8 +8,9 @@ namespace render {
 
 class Visualizer {
 public:
-  Visualizer(const std::string &app_name, const VertexData &data);
-  void run();
+  Visualizer(const std::string &app_name, size_t num_vertices);
+  bool shouldClose() const;
+  void drawFrame(const VertexData &vertex_data);
 
 private:
   Window window_;

@@ -51,21 +51,25 @@ class Plane;
 
 class Line {
 public:
+  Line() = default;
   Line(glm::vec3 point, glm::vec3 dir) : point_(point), dir_(dir) {
     assert(glm::length2(dir_) >= epsilon2);
   }
+  glm::vec3 rotatePoint(glm::vec3 point, float angle) const;
   float getProjection(glm::vec3 point) const {
     return glm::dot(point - point_, dir_);
   }
   std::optional<float> getEdgeIntersection(const Edge &edge,
                                            const Plane &plane) const;
   void dump(std::ostream &os) const;
+  void read(std::istream &is);
 
 private:
   glm::vec3 point_, dir_;
 };
 
 std::ostream &operator<<(std::ostream &os, const Line &line);
+std::istream &operator>>(std::istream &is, Line &line);
 
 class Triangle {
 public:

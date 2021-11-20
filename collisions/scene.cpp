@@ -1,5 +1,6 @@
 #include "scene.hpp"
 #include "geometry.hpp"
+#include <algorithm>
 #include <iostream>
 #include <numeric>
 
@@ -87,4 +88,36 @@ Collisions findIntersectingTriangles(const Scene &scene) {
   std::iota(tris.begin(), tris.end(), 0);
   return TreeNode(tris, scene).testCollisions(scene);
 }
+
+geom::Triangle DynamicTriangle::get(float time) const {
+  float angle = glm::radians(fmod(speed_ * time, 360.f));
+  return geom::Triangle(axis_.rotatePoint(tri_.getPoint(0), angle),
+                        axis_.rotatePoint(tri_.getPoint(1), angle),
+                        axis_.rotatePoint(tri_.getPoint(2), angle));
+}
+
+void DynamicTriangle::dump(std::ostream &os) const {
+  os << "{Triangle: " << tri_ << " Axis: " << axis_ << " Speed: " << speed_
+     << "}";
+}
+
+void DynamicTriangle::read(std::istream &is) { is >> tri_ >> axis_ >> speed_; }
+
+std::ostream &operator<<(std::ostream &os, const DynamicTriangle &tri) {
+  tri.dump(os);
+  return os;
+}
+
+std::istream &operator>>(std::istream &is, DynamicTriangle &tri) {
+  tri.read(is);
+  return is;
+}
+
+Scene updateDynamicScene(const DynamicScene &scene, float time) {
+  Scene res;
+  std::transform(scene.begin(), scene.end(), std::back_inserter(res),
+                 [time](const DynamicTriangle &tri) { return tri.get(time); });
+  return res;
+}
+
 } // namespace scene

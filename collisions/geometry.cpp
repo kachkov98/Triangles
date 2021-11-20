@@ -1,6 +1,6 @@
 #include "geometry.hpp"
+#include <glm/gtc/quaternion.hpp>
 #include <iostream>
-#include <ostream>
 
 namespace geom {
 
@@ -38,6 +38,11 @@ std::ostream &operator<<(std::ostream &os, const Range &range) {
   return os;
 }
 
+glm::vec3 Line::rotatePoint(glm::vec3 point, float angle) const {
+  auto quat = glm::normalize(glm::angleAxis(angle, dir_));
+  return point_ + quat * (point - point_);
+}
+
 std::optional<float> Line::getEdgeIntersection(const Edge &edge,
                                                const Plane &plane) const {
   float fstDistance = plane.getDistance(edge.first),
@@ -58,9 +63,21 @@ void Line::dump(std::ostream &os) const {
   os << "(" << point_ << " + " << dir_ << " * t)";
 }
 
+void Line::read(std::istream &is) {
+  glm::vec3 p1, p2;
+  is >> p1 >> p2;
+  Line tmp(p1, p2 - p1);
+  std::swap(*this, tmp);
+}
+
 std::ostream &operator<<(std::ostream &os, const Line &line) {
   line.dump(os);
   return os;
+}
+
+std::istream &operator>>(std::istream &is, Line &line) {
+  line.read(is);
+  return is;
 }
 
 Range Triangle::getIntersectionRange(const Line &line,

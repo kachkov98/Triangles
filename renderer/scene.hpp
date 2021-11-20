@@ -60,31 +60,26 @@ class VertexBuffer final : public Buffer {
 public:
   VertexBuffer() = default;
   VertexBuffer(vk::Device device, vk::PhysicalDevice physical_device,
-               const VertexData &data)
-      : Buffer(device, physical_device, sizeof(Vertex) * data.size(),
+               size_t num_vertices)
+      : Buffer(device, physical_device, sizeof(Vertex) * num_vertices,
                vk::BufferUsageFlagBits::eVertexBuffer,
                vk::MemoryPropertyFlagBits::eHostVisible |
                    vk::MemoryPropertyFlagBits::eHostCoherent),
-        num_vertices_(data.size()) {
-    upload(device, data);
-  }
-  unsigned getNumVertices() const { return num_vertices_; }
+        num_vertices_(num_vertices) {}
+  size_t getNumVertices() const { return num_vertices_; }
 
 private:
-  unsigned num_vertices_;
+  size_t num_vertices_;
 };
 
 class CameraBuffer final : public Buffer {
 public:
   CameraBuffer() = default;
-  CameraBuffer(vk::Device device, vk::PhysicalDevice physical_device,
-               const CameraData &data)
+  CameraBuffer(vk::Device device, vk::PhysicalDevice physical_device)
       : Buffer(device, physical_device, sizeof(CameraData),
                vk::BufferUsageFlagBits::eUniformBuffer,
                vk::MemoryPropertyFlagBits::eHostVisible |
-                   vk::MemoryPropertyFlagBits::eHostCoherent) {
-    upload(device, data);
-  }
+                   vk::MemoryPropertyFlagBits::eHostCoherent) {}
 };
 
 class Camera {

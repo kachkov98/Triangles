@@ -13,9 +13,10 @@ class Window;
 class Renderer {
 public:
   Renderer(const Window &window, const std::string &app_name,
-           const VertexData &vertex_data, const CameraData &camera_data);
+           size_t num_vertices);
   void resize(const Window &window);
-  void draw(const Window &window, const CameraData &camera_data);
+  void draw(const Window &window, const VertexData &vertex_data,
+            const CameraData &camera_data);
   void waitIdle() const { device_->waitIdle(); }
 
 private:

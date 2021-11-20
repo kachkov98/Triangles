@@ -25,8 +25,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 #endif
 
 Renderer::Renderer(const Window &window, const std::string &app_name,
-                   const VertexData &vertex_data,
-                   const CameraData &camera_data) {
+                   size_t num_vertices) {
   createInstance(window, app_name);
 #ifndef NDEBUG
   createDebugCallback();
@@ -38,10 +37,10 @@ Renderer::Renderer(const Window &window, const std::string &app_name,
   createCommandPool();
   createSemaphores();
   createSwapchain(window.getExtent());
-  scene_ = std::move(VertexBuffer(*device_, physical_device_, vertex_data));
+  scene_ = std::move(VertexBuffer(*device_, physical_device_, num_vertices));
   camera_buffers_.reserve(image_count_);
   for (unsigned i = 0; i < image_count_; ++i)
-    camera_buffers_.emplace_back(*device_, physical_device_, camera_data);
+    camera_buffers_.emplace_back(*device_, physical_device_);
   createDescriptors();
   createDepthResources();
   createRenderPass();
@@ -74,7 +73,8 @@ void Renderer::resize(const Window &window) {
   recordCommandBuffers();
 }
 
-void Renderer::draw(const Window &window, const CameraData &camera_data) {
+void Renderer::draw(const Window &window, const VertexData &vertex_data,
+                    const CameraData &camera_data) {
   auto image_index = device_->acquireNextImageKHR(
       *swapchain_, std::numeric_limits<uint64_t>::max(),
       *image_available_semaphore_, {});
@@ -83,6 +83,7 @@ void Renderer::draw(const Window &window, const CameraData &camera_data) {
     return;
   }
 
+  scene_.upload(*device_, vertex_data);
   camera_buffers_[image_index.value].upload(*device_, camera_data);
 
   vk::PipelineStageFlags wait_stage_mask =
